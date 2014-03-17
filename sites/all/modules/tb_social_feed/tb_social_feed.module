@@ -1,0 +1,176 @@
+<?php
+global $user;;
+function tb_social_feed_menu() {
+    $items = array();
+
+    $items['admin/config/feed'] = array(
+        'title' => 'Feed',
+        'description' => 'Tools that enhance feed.',
+        'position' => 'right',
+        'page callback' => 'system_admin_menu_block_page',
+        'access arguments' => array('access administration pages'),
+        'file' => 'system.admin.inc',
+        'weight' => -15        
+    );
+
+    $items ['admin/config/feed/tb_social_feed'] = array(
+        'title' => 'TB Social Feed',
+        'description' => t('Configure TB Social Feed Module'),
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('tb_social_feed_admin_settings'),
+        'access arguments' => array('administer modules'),
+        'file'  =>  'tb_social_feed.admin.inc'
+    );
+    
+    //Ajax Callback
+    $items['tb_social_feed/fb_user'] = array(
+        'title' => 'TB Social Feed',
+        'description' => t('Configure TB Social Feed Module'),
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('tb_social_feed_get_faccbok_account'),
+        'access arguments' => array('administer modules'),
+        'file'  =>  'tb_social_feed.ajax.inc'
+    );
+    return $items;
+}
+
+
+
+function tb_social_feed_cron() {
+    $feed_services = tb_social_feed_get_services();
+    foreach ($feed_services as $key => $service) {
+        if ($service->enabled && $service->auto_feed) {
+            $configs = array();
+            $configs['feed_limit'] = $service->feed_limit;
+            $configs['app_info'] = unserialize($service->app_info);
+            $class_name = $service->class;
+            if ($service->enabled && class_exists($class_name)) {
+                if ($service->number_accounts >= 0) {
+                    $accounts = db_select('tb_social_feed_accounts', 'a')
+                            ->fields('a')
+                            ->condition('service', $service->service)
+                            ->execute()
+                            ->fetchAll();
+                    foreach ($accounts as $account) {
+                        $configs['account'] = $account->account;
+                        $feed = new $class_name($configs);
+                        $results = $feed->feed();
+                    }
+                } else {
+                    $feed = new $class_name($configs);
+                    $results = $feed->feed();
+                }
+            }
+        }
+    }
+}
+
+function tb_social_feed_get_services() {
+    $db_services = new Tb_Social_Feed_Services();
+    $services = $db_services->select(array(), array(
+        'type'  =>  'tb_social_feed'
+    ), array(), Tb_Social_Feed_Services::$RETURN_ARRAY);
+    if (empty($services)) {
+        $services = tb_social_feed_default_sevices();
+        foreach ($services as $name => $service) {
+            $service['service'] = $name;
+            $service['created'] = time();
+            $service['changed'] = time();
+            $db_services->insert($service);            
+        }
+        $services = $db_services->select(array(), array(
+            'type'  =>  'tb_social_feed'
+        ), array(), Tb_Social_Feed_Services::$RETURN_ARRAY);
+    }
+    return $services;
+}
+
+//drupal_get_path('module', 'tb_feed')
+function tb_social_feed_default_sevices() {
+    return array(
+        'facebook' => array(
+            'title' => 'Facebook',
+            'type' => 'tb_social_feed',
+            'class' => 'TBFacebookFeed',
+            'inc' => 'includes/facebook',
+            'enabled' => 0,
+            'auto_feed' => 1,
+            'feed_limit' => 10,
+            'number_accounts' => 0,
+        ),
+        'twitter' => array(
+            'title' => 'Twitter',
+            'type' => 'tb_social_feed',
+            'class' => 'TBTwitterFeed',
+            'inc' => 'includes/twitter',
+            'enabled' => 0,
+            'auto_feed' => 1,
+            'feed_limit' => 10,
+            'number_accounts' => 0,
+        ),
+        'instagram' => array(
+            'title' => 'Instagram',
+            'type' => 'tb_social_feed',
+            'class' => 'TBInstagramFeed',
+            'inc' => 'includes/instagram',
+            'enabled' => 0,
+            'auto_feed' => 1,
+            'feed_limit' => 10,
+            'number_accounts' => 0,
+        ),
+        'flickr' => array(
+            'title' => 'Flickr',
+            'type' => 'tb_social_feed',
+            'class' => 'TBFlickrFeed',
+            'inc' => 'includes/flickr',
+            'enabled' => 0,
+            'auto_feed' => 1,
+            'feed_limit' => 10,
+            'number_accounts' => 0,
+        ),
+        'youtube' => array(
+            'title' => 'Youtube',
+            'type' => 'tb_social_feed',
+            'class' => 'TBYoutubeFeed',
+            'inc' => 'includes/youtube',
+            'enabled' => 0,
+            'auto_feed' => 1,
+            'feed_limit' => 10,
+            'number_accounts' => 0,
+        ),
+        'vimeo' => array(
+            'title' => 'Vimeo',
+            'type' => 'tb_social_feed',
+            'class' => 'TBVimeoFeed',
+            'inc' => 'includes/vimeo',
+            'enabled' => 0,
+            'auto_feed' => 1,
+            'feed_limit' => 10,
+            'number_accounts' => 0,
+        ),
+    );
+}
+
+/**
+ * Implements hook_node_info().
+ */
+function tb_social_feed_node_info() {
+    return array(
+        'tb_social_feed' => array(
+            'name' => t('Social feed'),
+            'base' => 'node_content',
+            'description' => t('Social feed.'),
+            'custom' => 1,
+            'modified' => 1,
+            'locked' => 0,
+            'disabled' => 0,
+            'comment' => '1',
+            'node_options' => array(
+                'status' => true,
+                'promote' => false,
+                'sticky' => false,
+            ),
+        ),
+    );
+}
+
